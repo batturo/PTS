@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">School ERP</string>
-    <string name="title_activity_main">School ERP</string>
-    <string name="package_name">in.school.erp</string>
-    <string name="custom_url_scheme">in.school.erp</string>
+    <string name="app_name">PTS School</string>
+    <string name="title_activity_main">PTS School</string>
+    <string name="package_name">com.batturo.pts</string>
+    <string name="custom_url_scheme">com.batturo.pts</string>
 </resources>

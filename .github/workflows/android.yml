@@ -1,0 +1,97 @@
+# Builds the PTS School Android app and publishes it as a GitHub Release ("Android app – latest").
+# Signing: add repository secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS to get a
+# release-signed APK + Play Store bundle (.aab). Without them a debug-signed APK is built (fine for testing).
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths: ['client/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-app
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_VERSION_CODE: ${{ github.run_number }}
+      APP_VERSION_NAME: 1.0.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Build the app's web bundle (points at the live Netlify site)
+        working-directory: client
+        run: |
+          npm ci --include=dev
+          npx vite build --mode mobile
+          npx cap sync android
+
+      - name: Prepare signing key (if configured)
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No signing secrets set – building a debug-signed APK."
+          fi
+
+      - name: Build APK (and Play Store bundle when signed)
+        working-directory: client/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          chmod +x gradlew
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            ./gradlew --no-daemon assembleRelease bundleRelease
+            cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/PTS-School.apk"
+            cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/PTS-School-PlayStore.aab"
+          else
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/out/PTS-School.apk"
+          fi
+          ls -la "$GITHUB_WORKSPACE/out"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PTS-School-android
+          path: out/*
+
+      - name: Publish as the "android-latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SIGN="debug-signed (for testing)"; [ "${{ steps.signing.outputs.signed }}" = "true" ] && SIGN="release-signed"
+          gh release delete android-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create android-latest out/* \
+            --title "PTS School – Android app (v${APP_VERSION_NAME})" \
+            --notes "Android app for https://parent-teacher-student.netlify.app — ${SIGN}, built from ${GITHUB_SHA::7}.
+
+          **Install:** open this page on the Android phone, tap **PTS-School.apk**, then allow *Install unknown apps* for your browser when asked." \
+            --latest

@@ -123,22 +123,29 @@ Limits on Netlify:
 
 SQLite is enough for a single school (thousands of students). For a multi-school SaaS, move to PostgreSQL. The SQL is standard, so the change is limited to `server/src/db.js`.
 
-## Building the mobile apps
+## Mobile apps (Android & iOS)
 
-The apps load the same React code and call your server over HTTPS.
+The apps are the same React app wrapped with Capacitor (`client/android`, `client/ios`). They talk to the live site set in `client/.env.mobile` (`VITE_API_URL=https://parent-teacher-student.netlify.app`). App name **PTS School**, app id `com.batturo.pts`.
 
-```bash
-cd client
-echo "VITE_API_URL=https://erp.yourschool.in" > .env   # your server's public URL
-npm run cap:sync                                        # build + copy into android/ and ios/
-npx cap open android    # Android Studio → Build → Generate Signed Bundle (.aab) → Google Play
-npx cap open ios        # Xcode (macOS) → Product → Archive → App Store Connect
-```
+### Android – built automatically
+Every push to `main` that changes `client/` runs `.github/workflows/android.yml`. It builds the app and publishes it on the repo's **Releases** page as **android-latest**, with `PTS-School.apk`. To run it by hand: **Actions → Android app → Run workflow**.
 
-- Change `appId` / `appName` in `client/capacitor.config.json` before publishing, e.g. `in.yourschool.erp`.
-- Location permissions are already declared in `AndroidManifest.xml` and `Info.plist`.
-- Drivers should keep the app open during a trip. Sharing while the app is in the background needs `@capacitor-community/background-geolocation` plus a foreground-service notification. Add it if drivers need to use other apps mid-trip.
-- App icons and splash screens: `npx @capacitor/assets generate`.
+- **Install on a phone:** open the release page on the phone, tap `PTS-School.apk`, and allow "Install unknown apps" for the browser when asked.
+- **Signing:** without secrets the APK is debug-signed. That's fine for testing, but each new build must be installed after uninstalling the old one. Add these repository secrets (**Settings → Secrets and variables → Actions**) to get a properly signed APK that updates in place, plus `PTS-School-PlayStore.aab` for Google Play:
+  - `ANDROID_KEYSTORE_BASE64`: the keystore file, base64-encoded
+  - `ANDROID_KEYSTORE_PASSWORD`: the keystore password
+  - `ANDROID_KEY_ALIAS`: `pts`
+
+  **Keep the keystore safe.** Google Play only accepts updates signed with the same key.
+
+To build locally instead: install Android Studio, then run `cd client && npm run cap:sync && npx cap open android`.
+
+### iOS
+Apple only allows iOS apps to be built on a Mac with Xcode, and installed through the App Store or TestFlight (Apple Developer Program, US$99/year).
+1. On a Mac: `cd client && npm install && npm run cap:sync && npx cap open ios`
+2. In Xcode, select your team under **Signing & Capabilities**, then choose **Product → Archive → Distribute App**.
+
+Until then, iPhone users can install the website as an app: open https://parent-teacher-student.netlify.app in **Safari**, tap **Share**, then **Add to Home Screen**. It opens full-screen with the PTS School icon.
 
 ## Project layout
 
