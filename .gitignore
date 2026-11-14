@@ -8,3 +8,4 @@ client/android/app/build/
 client/android/.gradle/
 client/ios/App/Pods/
 server/src/sqlwasm.generated.js
+netlify/build/

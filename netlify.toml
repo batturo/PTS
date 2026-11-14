@@ -1,7 +1,7 @@
 # Everything runs on Netlify: the website is static, the API runs as one Netlify Function,
 # and the database + uploaded files are stored in Netlify Blobs. No other server is needed.
 [build]
-  command = "npm run setup && node scripts/embed-sqlwasm.mjs && npm --prefix client run build"
+  command = "npm run setup && npm --prefix server run build:function && npm --prefix client run build"
   publish = "client/dist"
 
 [build.environment]
@@ -12,13 +12,4 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/api/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/uploads/*"
-  to = "/.netlify/functions/api/uploads/:splat"
-  status = 200
+# Routing to the function is declared in netlify/functions/api.mjs (config.path).
