@@ -140,12 +140,20 @@ Every push to `main` that changes `client/` runs `.github/workflows/android.yml`
 
 To build locally instead: install Android Studio, then run `cd client && npm run cap:sync && npx cap open android`.
 
-### iOS
-Apple only allows iOS apps to be built on a Mac with Xcode, and installed through the App Store or TestFlight (Apple Developer Program, US$99/year).
-1. On a Mac: `cd client && npm install && npm run cap:sync && npx cap open ios`
-2. In Xcode, select your team under **Signing & Capabilities**, then choose **Product → Archive → Distribute App**.
+### iOS – built automatically
+`.github/workflows/ios.yml` builds the iOS app on a GitHub macOS runner and publishes **PTS-School-unsigned.ipa** as the **ios-latest** release. To run it by hand: **Actions → iOS app → Run workflow**.
 
-Until then, iPhone users can install the website as an app: open https://parent-teacher-student.netlify.app in **Safari**, tap **Share**, then **Add to Home Screen**. It opens full-screen with the PTS School icon.
+Apple requires every app to be signed before it runs on an iPhone:
+- **Free (testing):** use [Sideloadly](https://sideloadly.io) on a PC or Mac:
+  1. Connect the iPhone by USB and drag in the `.ipa`.
+  2. Sign in with your Apple ID and click **Start**.
+  3. On the iPhone, go to **Settings → General → VPN & Device Management** and trust your Apple ID.
+
+  Apps installed with a free Apple ID must be reinstalled every 7 days.
+- **App Store / TestFlight:** this needs an Apple Developer Program membership (US$99/year).
+  1. On a Mac, run `cd client && npm install && npm run cap:sync && npx cap open ios`.
+  2. In Xcode, select your team under **Signing & Capabilities**, then choose **Product → Archive → Distribute App**.
+- **No install:** open https://parent-teacher-student.netlify.app in **Safari**, then tap **Share → Add to Home Screen**.
 
 ## Project layout
 
