@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { post, setToken, get } from '../api.js';
 
 const DEMO = [['Administrator', 'admin', 'admin123'], ['Accountant', 'accountant', 'accounts123'], ['Teacher', 'teacher', 'teacher123'], ['Librarian', 'librarian', 'library123'],
@@ -7,6 +7,8 @@ const DEMO = [['Administrator', 'admin', 'admin123'], ['Accountant', 'accountant
 export default function Login({ school, onLogin }) {
   const [f, setF] = useState({ username: '', password: '' });
   const [err, setErr] = useState(''); const [busy, setBusy] = useState(false);
+  // Check the server connection up front so setup problems are explained before anyone types a password.
+  useEffect(() => { get('/health').catch((e) => setErr(e.message)); }, []);
   const submit = async (e) => {
     e?.preventDefault(); setBusy(true); setErr('');
     try { const r = await post('/auth/login', f); setToken(r.token); onLogin(await get('/auth/me')); }

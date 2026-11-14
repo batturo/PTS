@@ -15,7 +15,12 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   } catch { throw new Error('Cannot reach the server. Check your internet connection.'); }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && token) { setToken(null); window.dispatchEvent(new Event('erp-logout')); }
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    if (data.error) throw new Error(data.error);
+    if (res.status === 404) throw new Error('The website cannot find its server (404). In Netlify → Site configuration → Environment variables, check that BACKEND_URL is exactly your Render link (copy it from the Render dashboard), then redeploy.');
+    if ([502, 503, 504].includes(res.status)) throw new Error('The server is waking up (free hosting sleeps when idle). Please wait about a minute and try again.');
+    throw new Error(`Request failed (${res.status})`);
+  }
   return data;
 }
 export const get = (p) => api(p);
