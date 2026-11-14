@@ -3,7 +3,7 @@
   "private": true,
   "description": "School ERP for Indian schools – website + Android/iOS apps",
   "scripts": {
-    "setup": "npm --prefix server install && npm --prefix client install",
+    "setup": "npm --prefix server install && npm --prefix client install --include=dev",
     "seed": "npm --prefix server run seed -- --reset",
     "build": "npm --prefix client run build",
     "start": "npm --prefix server start",
@@ -12,5 +12,8 @@
     "mobile:sync": "npm --prefix client run cap:sync",
     "android": "cd client && npx cap open android",
     "ios": "cd client && npx cap open ios"
+  },
+  "engines": {
+    "node": ">=22.5"
   }
 }

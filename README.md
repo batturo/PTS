@@ -86,6 +86,14 @@ The Administrator passes every staff permission check but cannot act as a studen
 - **Trip:** the driver taps *Start morning pickup* or *Start afternoon drop*, and the phone's GPS is sent every ~4 seconds.
 - **Students and parents on that route:** see the live map, speed, nearest stop, and the driver's phone number. The map refreshes every 5 seconds.
 
+## Get a shareable website link (Render, free)
+
+1. Sign up at https://render.com with your GitHub account and give Render access to this repository.
+2. In the Render dashboard, choose **New → Blueprint**, select this repo and click **Apply**. Render reads `render.yaml` and builds the app (about 5 minutes).
+3. Your site is live at a link like `https://pts-school-erp.onrender.com`. Share it with anyone.
+
+Free plan limits: the site sleeps after 15 minutes without visitors, so the first visit afterwards takes about 50 seconds. The disk is temporary, so data resets to the demo school whenever the service restarts or redeploys. For real use, upgrade the service and add a persistent disk mounted at `/var/data`, then set `DATA_DIR=/var/data/db` and `UPLOAD_DIR=/var/data/uploads`.
+
 ## Production deployment (India)
 
 1. Use any Linux VPS with Node 22+, e.g. AWS Mumbai (ap-south-1), DigitalOcean Bangalore or Azure Central India.

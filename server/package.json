@@ -19,5 +19,8 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.5.0"
   },
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  }
 }
