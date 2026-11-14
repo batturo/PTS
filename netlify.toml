@@ -1,0 +1,9 @@
+# Netlify hosts the website; the API server (Express + SQLite) runs on Render (see render.yaml).
+# Set BACKEND_URL in Netlify → Site configuration → Environment variables, e.g. https://pts-school-erp.onrender.com
+[build]
+  command = "npm --prefix client install --include=dev && npm --prefix client run build && node scripts/netlify-redirects.mjs"
+  publish = "client/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  VITE_SHOW_DEMO = "1"   # shows demo-login buttons; remove for a real school

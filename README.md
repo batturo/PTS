@@ -94,6 +94,14 @@ The Administrator passes every staff permission check but cannot act as a studen
 
 Free plan limits: the site sleeps after 15 minutes without visitors, so the first visit afterwards takes about 50 seconds. The disk is temporary, so data resets to the demo school whenever the service restarts or redeploys. For real use, upgrade the service and add a persistent disk mounted at `/var/data`, then set `DATA_DIR=/var/data/db` and `UPLOAD_DIR=/var/data/uploads`.
 
+## Website on Netlify (optional)
+
+Netlify can host the website pages, but not the server and database, so the server still runs on Render (see above).
+1. Deploy the server on Render first and copy its link, e.g. `https://pts-school-erp.onrender.com`.
+2. In Netlify, choose **Add new site → Import an existing project → GitHub → PTS**. The build settings are read from `netlify.toml`.
+3. Before deploying, add the environment variable `BACKEND_URL` = your Render link (Site configuration → Environment variables).
+4. Deploy. Your site is at `https://<name>.netlify.app`, and you can rename it under Site configuration → Change site name. Netlify forwards `/api` and `/uploads` to Render.
+
 ## Production deployment (India)
 
 1. Use any Linux VPS with Node 22+, e.g. AWS Mumbai (ap-south-1), DigitalOcean Bangalore or Azure Central India.
