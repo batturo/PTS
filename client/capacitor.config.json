@@ -1,0 +1,7 @@
+{
+  "appId": "in.school.erp",
+  "appName": "School ERP",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" },
+  "plugins": {}
+}

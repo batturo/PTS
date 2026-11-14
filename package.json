@@ -1,0 +1,16 @@
+{
+  "name": "school-erp",
+  "private": true,
+  "description": "School ERP for Indian schools – website + Android/iOS apps",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix client install",
+    "seed": "npm --prefix server run seed -- --reset",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "dev:api": "npm --prefix server run dev",
+    "dev:web": "npm --prefix client run dev",
+    "mobile:sync": "npm --prefix client run cap:sync",
+    "android": "cd client && npx cap open android",
+    "ios": "cd client && npx cap open ios"
+  }
+}

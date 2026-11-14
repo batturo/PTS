@@ -1,0 +1,9 @@
+node_modules/
+client/dist/
+server/data/
+server/uploads/*
+!server/uploads/sample-notes.pdf
+.env
+client/android/app/build/
+client/android/.gradle/
+client/ios/App/Pods/
