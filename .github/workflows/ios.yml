@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 45
     env:
       APP_VERSION: 1.0.${{ github.run_number }}
