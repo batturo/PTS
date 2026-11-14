@@ -17,8 +17,8 @@ export async function api(path, { method = 'GET', body, form } = {}) {
   if (res.status === 401 && token) { setToken(null); window.dispatchEvent(new Event('erp-logout')); }
   if (!res.ok) {
     if (data.error) throw new Error(data.error);
-    if (res.status === 404) throw new Error('The website cannot find its server (404). In Netlify → Site configuration → Environment variables, check that BACKEND_URL is exactly your Render link (copy it from the Render dashboard), then redeploy.');
-    if ([502, 503, 504].includes(res.status)) throw new Error('The server is waking up (free hosting sleeps when idle). Please wait about a minute and try again.');
+    if (res.status === 404) throw new Error('The website cannot reach its server (404). On Netlify, open Deploys and check that the latest deploy finished and lists the "api" function; then Trigger deploy → Clear cache and deploy site.');
+    if ([502, 503, 504].includes(res.status)) throw new Error('The server is busy or starting up. Please wait a few seconds and try again.');
     throw new Error(`Request failed (${res.status})`);
   }
   return data;

@@ -86,21 +86,26 @@ The Administrator passes every staff permission check but cannot act as a studen
 - **Trip:** the driver taps *Start morning pickup* or *Start afternoon drop*, and the phone's GPS is sent every ~4 seconds.
 - **Students and parents on that route:** see the live map, speed, nearest stop, and the driver's phone number. The map refreshes every 5 seconds.
 
-## Get a shareable website link (Render, free)
+## Get a shareable website link (Netlify, free) – no other server needed
 
-1. Sign up at https://render.com with your GitHub account and give Render access to this repository.
-2. In the Render dashboard, choose **New → Blueprint**, select this repo and click **Apply**. Render reads `render.yaml` and builds the app (about 5 minutes).
-3. Your site is live at a link like `https://pts-school-erp.onrender.com`. Share it with anyone.
+Everything runs on Netlify:
+- **Website:** served as static pages.
+- **API:** runs as one Netlify Function, `netlify/functions/api.js`, which wraps the same Express app.
+- **Database:** SQLite compiled to WebAssembly (`sql.js`), saved to **Netlify Blobs** after every change.
+- **Uploaded files:** also stored in Netlify Blobs.
 
-Free plan limits: the site sleeps after 15 minutes without visitors, so the first visit afterwards takes about 50 seconds. The disk is temporary, so data resets to the demo school whenever the service restarts or redeploys. For real use, upgrade the service and add a persistent disk mounted at `/var/data`, then set `DATA_DIR=/var/data/db` and `UPLOAD_DIR=/var/data/uploads`.
+1. Sign in at https://app.netlify.com with GitHub.
+2. Choose **Add new site → Import an existing project → GitHub → PTS**. Leave every build setting as it is; `netlify.toml` provides them. Click **Deploy**.
+3. After about 3 minutes, your site is live at `https://<random-name>.netlify.app`. Rename it under **Site configuration → Change site name**.
+4. The first visit creates the demo school automatically. The sign-in page has buttons for every demo login.
 
-## Website on Netlify (optional)
+Limits on Netlify:
+- Uploads are capped at 4.5 MB per file. For video classes, paste a YouTube link.
+- The very first request after a quiet period takes 1–2 seconds.
+- The database is saved as one file after each change. That suits a single school with normal use. With many staff saving at the exact same moment, one change could overwrite another; for heavy use, run the Node server with a real disk instead (see below).
+- To start over with fresh demo data, delete the `school-erp` store under **Netlify → Blobs**.
 
-Netlify can host the website pages, but not the server and database, so the server still runs on Render (see above).
-1. Deploy the server on Render first and copy its link, e.g. `https://pts-school-erp.onrender.com`.
-2. In Netlify, choose **Add new site → Import an existing project → GitHub → PTS**. The build settings are read from `netlify.toml`.
-3. Before deploying, add the environment variable `BACKEND_URL` = your Render link (Site configuration → Environment variables).
-4. Deploy. Your site is at `https://<name>.netlify.app`, and you can rename it under Site configuration → Change site name. Netlify forwards `/api` and `/uploads` to Render.
+**Alternative:** `render.yaml` runs the regular Node server on Render (**New → Blueprint**).
 
 ## Production deployment (India)
 

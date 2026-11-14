@@ -1,9 +1,24 @@
-# Netlify hosts the website; the API server (Express + SQLite) runs on Render (see render.yaml).
-# Set BACKEND_URL in Netlify → Site configuration → Environment variables, e.g. https://pts-school-erp.onrender.com
+# Everything runs on Netlify: the website is static, the API runs as one Netlify Function,
+# and the database + uploaded files are stored in Netlify Blobs. No other server is needed.
 [build]
-  command = "npm --prefix client install --include=dev && npm --prefix client run build && node scripts/netlify-redirects.mjs"
+  command = "npm run setup && node scripts/embed-sqlwasm.mjs && npm --prefix client run build"
   publish = "client/dist"
 
 [build.environment]
   NODE_VERSION = "22"
-  VITE_SHOW_DEMO = "1"   # shows demo-login buttons; remove for a real school
+  VITE_SHOW_DEMO = "1"   # shows demo-login buttons on the sign-in page; remove for a real school
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/uploads/*"
+  to = "/.netlify/functions/api/uploads/:splat"
+  status = 200

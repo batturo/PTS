@@ -1,15 +1,39 @@
-import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-fs.mkdirSync(dataDir, { recursive: true });
+/**
+ * Database access. Two interchangeable drivers expose the same small API (exec / prepare().get/all/run):
+ *  - Node's built-in SQLite (a file on disk) when running as a normal server;
+ *  - SQLite compiled to WebAssembly (sql.js), used by the Netlify Function, which saves the database to Netlify Blobs.
+ */
+export const SERVERLESS = !!(process.env.SERVERLESS || process.env.AWS_LAMBDA_FUNCTION_NAME);
+let impl = null;
+export const db = {
+  exec: (sql) => impl.exec(sql),
+  prepare: (sql) => impl.prepare(sql),
+};
+export const hasDatabase = () => !!impl;
 
-export const db = new DatabaseSync(path.join(dataDir, 'school.db'));
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+/** Switch to a database driver and make sure all tables and default settings exist. */
+export function useDatabase(driver) {
+  impl = driver;
+  migrate();
+}
 
+function openNodeSqlite() {
+  const here = (() => { try { return path.dirname(fileURLToPath(import.meta.url)); } catch { return process.cwd(); } })();
+  const dataDir = process.env.DATA_DIR || path.join(here, '..', 'data');
+  fs.mkdirSync(dataDir, { recursive: true });
+  const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+  const d = new DatabaseSync(path.join(dataDir, 'school.db'));
+  d.exec('PRAGMA journal_mode = WAL;');
+  return d;
+}
+
+function migrate() {
+db.exec('PRAGMA foreign_keys = ON;');
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,7 +203,6 @@ CREATE TABLE IF NOT EXISTS bus_routes (
   lat REAL, lng REAL, speed REAL, heading REAL, location_updated_at TEXT
 );
 `);
-
 const defaults = {
   school_name: 'Demo Public School',
   school_address: 'Sector 12, New Delhi - 110001',
@@ -190,11 +213,16 @@ const defaults = {
   esi_employee_rate: '0.75', esi_employer_rate: '3.25', esi_wage_limit: '21000',
   pt_amount: '200', pt_threshold: '15000', ot_multiplier: '1',
 };
+  // Secret used to sign login tokens (kept out of the settings screens). JWT_SECRET env var overrides it.
+  db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)').run('_jwt_secret', crypto.randomBytes(32).toString('hex'));
 const ins = db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(defaults)) ins.run(k, v);
+}
 
-export function getSettings() {
-  return Object.fromEntries(db.prepare('SELECT key, value FROM settings').all().map(r => [r.key, r.value]));
+if (!SERVERLESS) useDatabase(openNodeSqlite());
+
+export function getSettings() { // excludes internal keys such as _jwt_secret
+  return Object.fromEntries(db.prepare("SELECT key, value FROM settings WHERE key NOT LIKE '\\_%' ESCAPE '\\'").all().map(r => [r.key, r.value]));
 }
 export const setting = (k) => db.prepare('SELECT value FROM settings WHERE key=?').get(k)?.value;
 export const num = (k) => Number(setting(k) || 0);

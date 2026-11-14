@@ -1,17 +1,17 @@
 import jwt from 'jsonwebtoken';
-import { db } from './db.js';
+import { db, setting } from './db.js';
 
-const SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
+const SECRET = () => process.env.JWT_SECRET || setting('_jwt_secret');
 export const STAFF = ['admin', 'accountant', 'teacher', 'driver', 'librarian'];
 
-export const sign = (u) => jwt.sign({ id: u.id, role: u.role }, SECRET, { expiresIn: '7d' });
+export const sign = (u) => jwt.sign({ id: u.id, role: u.role }, SECRET(), { expiresIn: '7d' });
 
 export function authenticate(req, res, next) {
   const h = req.headers.authorization || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : null;
   if (!token) return res.status(401).json({ error: 'Not logged in' });
   try {
-    const { id } = jwt.verify(token, SECRET);
+    const { id } = jwt.verify(token, SECRET());
     const u = db.prepare('SELECT id, username, role, name, phone, email, student_id, active FROM users WHERE id=?').get(id);
     if (!u || !u.active) return res.status(401).json({ error: 'Account disabled' });
     req.user = u;

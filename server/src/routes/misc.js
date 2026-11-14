@@ -3,13 +3,19 @@ import multer from 'multer';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { db, getSettings, num } from '../db.js';
+import { db, getSettings, num, SERVERLESS } from '../db.js';
 import { allow, isFamily, myStudent } from '../auth.js';
 import { bad, today, round2 } from '../util.js';
 import { computeInvoice } from './fees.js';
 
 export const miscRouter = Router();
-export const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'uploads');
+const here = () => { try { return path.dirname(fileURLToPath(import.meta.url)); } catch { return process.cwd(); } };
+export const UPLOAD_DIR = process.env.UPLOAD_DIR || (SERVERLESS ? '/tmp/uploads' : path.join(here(), '..', '..', 'uploads'));
+// Netlify Functions accept request bodies up to ~6 MB, so uploads are capped lower there.
+export const MAX_UPLOAD_MB = SERVERLESS ? 4.5 : 200;
+let afterUpload = null;
+/** Lets the hosting layer store uploaded files elsewhere (e.g. Netlify Blobs). */
+export const setUploadHook = (fn) => { afterUpload = fn; };
 
 const ALLOWED = { '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
   '.doc': '', '.docx': '', '.ppt': '', '.pptx': '' };
@@ -18,11 +24,12 @@ const upload = multer({
     destination: UPLOAD_DIR,
     filename: (req, f, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(f.originalname).toLowerCase()}`),
   }),
-  limits: { fileSize: 200 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
   fileFilter: (req, f, cb) => cb(ALLOWED[path.extname(f.originalname).toLowerCase()] !== undefined ? null : bad('Only PDF, Office documents, images and MP4/WebM videos are allowed'), true),
 });
-miscRouter.post('/upload', allow('teacher', 'librarian', 'accountant'), upload.single('file'), (req, res) => {
+miscRouter.post('/upload', allow('teacher', 'librarian', 'accountant'), upload.single('file'), async (req, res) => {
   if (!req.file) throw bad('No file uploaded');
+  if (afterUpload) await afterUpload(req.file);
   res.json({ url: `/uploads/${req.file.filename}`, name: req.file.originalname, size: req.file.size });
 });
 
