@@ -1,0 +1,11 @@
+node_modules/
+client/dist/
+server/data/
+server/uploads/
+.env
+.env.mobile
+.env.production
+server/src/sqlwasm.generated.js
+netlify/build/
+.netlify/
+server/src/setup-code.generated.js

@@ -1,0 +1,2 @@
+{ "name": "CA Firm Portal", "short_name": "CA Portal", "start_url": "/", "display": "standalone", "background_color": "#f4f6fa", "theme_color": "#14365d",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }] }

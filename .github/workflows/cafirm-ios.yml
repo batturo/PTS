@@ -1,0 +1,72 @@
+# Builds the CA Firm Portal iOS app (cafirm/client) on a GitHub macOS runner and publishes an UNSIGNED .ipa as the release "cafirm-ios-latest".
+# Needs the repository variable CAFIRM_API_URL (the https address of your server). Apple requires signing before an app runs on an iPhone:
+# sign the .ipa with Sideloadly/AltStore, or open cafirm/client/ios in Xcode with an Apple Developer account for TestFlight / App Store.
+name: CA Firm – iOS app
+
+on:
+  push:
+    branches: [main]
+    paths: ['cafirm/client/**', '.github/workflows/cafirm-ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cafirm-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      APP_VERSION: 1.0.${{ github.run_number }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      VITE_API_URL: ${{ vars.CAFIRM_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the server address is configured
+        run: test -n "$VITE_API_URL" || { echo "::error::Set the repository variable CAFIRM_API_URL to your server's https address."; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cafirm/client/package-lock.json
+      - name: Build the web bundle and sync it into the iOS project
+        working-directory: cafirm/client
+        run: |
+          npm ci --include=dev
+          npx vite build --mode mobile
+          npx cap sync ios
+      - name: Build the iOS app (Release, device, unsigned)
+        working-directory: cafirm/client/ios/App
+        run: |
+          xcodebuild -version
+          xcodebuild \
+            -workspace App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            MARKETING_VERSION="$APP_VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            archive | tail -n 40
+          test -d "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+      - name: Package as .ipa
+        run: |
+          mkdir -p out "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/out/CA-Firm-Portal-unsigned.ipa" Payload)
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CA-Firm-Portal-ios
+          path: out/*
+      - name: Publish as the "cafirm-ios-latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete cafirm-ios-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create cafirm-ios-latest out/* \
+            --title "CA Firm Portal – iOS app (v${APP_VERSION}, unsigned)" \
+            --notes "Unsigned iOS build of the CA Firm Portal, built from ${GITHUB_SHA::7}. Sign and install it with Sideloadly (free Apple ID, re-install every 7 days) or archive cafirm/client/ios in Xcode for TestFlight / the App Store." \
+            --latest=false

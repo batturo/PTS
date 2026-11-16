@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CA Firm Portal</string>
+    <string name="title_activity_main">CA Firm Portal</string>
+    <string name="package_name">com.batturo.cafirm</string>
+    <string name="custom_url_scheme">com.batturo.cafirm</string>
+</resources>
