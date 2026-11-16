@@ -95,3 +95,16 @@ and replace the default launcher icon / splash screen.
 * Automatic reminders before due dates, invoices/fee collection, e-signatures, and e-filing integration with government portals.
 * CAs and interns currently have identical permissions and see all clients; per-client assignment limits or an "intern needs CA approval
   before marking Filed" rule are easy to add if the firm wants them.
+
+## Hosting everything on Netlify
+
+`netlify.toml` (in this folder) runs the website as static files, the API as one Netlify Function (`netlify/functions/api.mjs`), and keeps the database
+and uploaded documents in **Netlify Blobs**. Create the Netlify site with *Base directory* = `cafirm`.
+
+* **First run:** there is no default password. Open the site; the build log prints a one-time *setup code* ("First-run setup code: …").
+  Enter it on the setup screen to create the Administrator. (Or set `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment variables before the first visit.)
+* **Limits:** uploaded documents are limited to **4 MB** each (Netlify Functions accept ~6 MB requests). The whole database is one blob that is
+  re-saved after every change, which suits a small firm (a handful of simultaneous users). If two people save at the same instant, the second gets a
+  "please try again" message rather than losing the first person's change. For heavy use or bigger files, run the Node server on a host with a disk
+  instead (see *Mobile apps* above) – the same code runs in both modes.
+* `npm --prefix server run test:netlify` tests the bundled function against a simulated Blobs store.

@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import { db, audit } from '../db.js';
 import { ROLES, sign, hash, authenticate, adminOnly, DUMMY_HASH, loginBlocked, loginFailed, loginOk } from '../auth.js';
 import { httpError, need, nul, str } from '../util.js';
+import crypto from 'node:crypto';
+import { SETUP_CODE } from '../setup-code.js';
 
 export const authRouter = Router();
 const PUBLIC = 'id, username, role, name, phone, email, client_id, active, created_at';
@@ -17,6 +19,20 @@ authRouter.post('/login', (req, res) => {
   if (!u.active) throw httpError(403, 'This account has been disabled. Please contact the firm.');
   loginOk(key);
   res.json({ token: sign(u), user: userView(u.id) });
+});
+
+// ---- First-run setup (no Administrator exists yet) ----------------------------------------------
+const noUsers = () => !db.prepare('SELECT 1 FROM users LIMIT 1').get();
+authRouter.get('/setup-status', (req, res) => res.json({ needed: noUsers() && !!SETUP_CODE }));
+authRouter.post('/setup', (req, res) => {
+  if (!noUsers()) throw httpError(409, 'Setup is already complete');
+  const key = `setup|${req.ip}`;
+  if (loginBlocked(key)) throw httpError(429, 'Too many attempts. Please wait a few minutes and try again.');
+  const a = Buffer.from(String(req.body.setup_code || '')), b = Buffer.from(SETUP_CODE || '\0');
+  if (!SETUP_CODE || a.length !== b.length || !crypto.timingSafeEqual(a, b)) { loginFailed(key); throw httpError(403, 'Wrong setup code'); }
+  const id = createUser({ username: req.body.username, password: req.body.password, name: req.body.name, role: 'admin' }, { id: null });
+  audit({ id }, 'first_setup', 'user', id, 'Administrator created');
+  res.status(201).json({ token: sign({ id }), user: userView(id) });
 });
 
 function userView(id) {

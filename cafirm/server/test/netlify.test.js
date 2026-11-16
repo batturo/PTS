@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-process.env.ADMIN_PASSWORD = 'admin-pass-1';
+process.env.SETUP_CODE = 'setup-123';
 process.env.JWT_SECRET = 'test-secret';
 const fn = await import('../../netlify/build/api.bundle.mjs');
 
@@ -39,10 +39,18 @@ async function call(method, path, { token, body, form } = {}) {
 }
 const S = {};
 
-test('first request bootstraps the database, master data and admin login in Blobs', async () => {
+test('first run: no default admin; setup needs the code; works once', async () => {
   assert.equal((await call('GET', '/api/health')).status, 200);
-  const r = await call('POST', '/api/auth/login', { body: { username: 'admin', password: 'admin-pass-1' } });
-  assert.equal(r.status, 200); S.admin = r.data.token;
+  assert.equal((await call('POST', '/api/auth/login', { body: { username: 'admin', password: 'admin123' } })).status, 401);
+  assert.equal((await call('GET', '/api/auth/setup-status')).data.needed, true);
+  const body = { username: 'boss', password: 'a-strong-pass', name: 'Boss' };
+  assert.equal((await call('POST', '/api/auth/setup', { body: { ...body, setup_code: 'wrong' } })).status, 403);
+  const r = await call('POST', '/api/auth/setup', { body: { ...body, setup_code: 'setup-123' } });
+  assert.equal(r.status, 201); S.admin = r.data.token;
+  assert.equal(r.data.user.role, 'admin');
+  assert.equal((await call('GET', '/api/auth/setup-status')).data.needed, false);
+  assert.equal((await call('POST', '/api/auth/setup', { body: { ...body, username: 'evil', setup_code: 'setup-123' } })).status, 409);
+  assert.ok(blobs.data.has('db'));
   assert.ok(blobs.data.has('db'));
   assert.equal((await call('GET', '/api/templates', { token: S.admin })).data.length, 21);
 });

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import './embed-sqlwasm.mjs';
+import './setup-code.mjs';
 
 const server = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outfile = path.join(server, '..', 'netlify', 'build', 'api.bundle.mjs');

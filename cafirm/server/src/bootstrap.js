@@ -21,7 +21,9 @@ export function bootstrap() {
         db.prepare('INSERT INTO registration_types (name,category,description,required_documents,timeline) VALUES (?,?,?,?,?)').run(name, category, description, required_documents, timeline);
     }
   });
-  if (!db.prepare('SELECT 1 FROM users LIMIT 1').get()) {
+  // On Netlify there is no safe default password: unless ADMIN_PASSWORD is set, the first visitor creates the
+  // Administrator on a setup screen, protected by a setup code (see routes/users.js).
+  if (!db.prepare('SELECT 1 FROM users LIMIT 1').get() && !(process.env.SERVERLESS && !process.env.ADMIN_PASSWORD)) {
     const username = process.env.ADMIN_USERNAME || 'admin';
     let password = process.env.ADMIN_PASSWORD;
     if (!password) {
