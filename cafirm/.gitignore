@@ -5,3 +5,6 @@ server/uploads/
 .env
 .env.mobile
 .env.production
+server/src/sqlwasm.generated.js
+netlify/build/
+.netlify/

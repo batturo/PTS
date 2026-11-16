@@ -7,14 +7,24 @@
     "start": "node --no-warnings src/index.js",
     "dev": "node --no-warnings --watch src/index.js",
     "seed": "node --no-warnings src/seed.js",
-    "test": "node --no-warnings --test test/api.test.js"
+    "test": "node --no-warnings --test test/api.test.js",
+    "test:netlify": "npm run build:function && node --no-warnings --test test/netlify.test.js",
+    "build:function": "node scripts/build-function.mjs"
   },
-  "engines": { "node": ">=22.5" },
+  "engines": {
+    "node": ">=22.5"
+  },
   "dependencies": {
+    "@netlify/blobs": "^8.2.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
-    "multer": "^2.0.2"
+    "multer": "^2.0.2",
+    "serverless-http": "^3.2.0",
+    "sql.js": "^1.16.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
   }
 }

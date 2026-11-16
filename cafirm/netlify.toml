@@ -1,0 +1,18 @@
+# CA Firm Portal on Netlify: the website is static, the API runs as one Netlify Function, and the database and uploaded
+# documents live in Netlify Blobs. Create the Netlify site with "Base directory" = cafirm.
+[build]
+  command = "npm run setup && npm --prefix server run build:function && npm --prefix client run build"
+  publish = "client/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Single-page app: any non-API path serves the app shell.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -2,7 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { DATA_DIR, UPLOAD_DIR, db, tx } from './db.js';
+import { DATA_DIR, UPLOAD_DIR, db, tx, openNodeDatabase } from './db.js';
+openNodeDatabase();
 import { hash } from './auth.js';
 
 if (process.argv.includes('--reset')) {

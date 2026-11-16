@@ -9,6 +9,8 @@ process.env.ADMIN_PASSWORD = 'admin-pass-1';
 const { createApp } = await import('../src/app.js');
 const { bootstrap } = await import('../src/bootstrap.js');
 const { periodsFor, fyOf } = await import('../src/compliance.js');
+const { openNodeDatabase } = await import('../src/db.js');
+openNodeDatabase();
 bootstrap();
 const server = createApp().listen(0);
 const base = `http://127.0.0.1:${server.address().port}/api`;

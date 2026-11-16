@@ -3,14 +3,35 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+/**
+ * Database access. Two interchangeable drivers expose the same small API (exec / prepare().get/all/run):
+ *  - Node's built-in SQLite (a file on disk) when running as a normal server (openNodeDatabase);
+ *  - SQLite compiled to WebAssembly (sql.js), used by the Netlify Function, which saves the database to Netlify Blobs.
+ */
+const here = (() => { try { return path.dirname(fileURLToPath(import.meta.url)); } catch { return process.cwd(); } })();
 export const DATA_DIR = process.env.DATA_DIR || path.join(here, '..', 'data');
 export const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(DATA_DIR, 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
-export const db = new DatabaseSync(process.env.DB_FILE || path.join(DATA_DIR, 'cafirm.db'));
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+let impl = null;
+export const db = {
+  exec: (sql) => impl.exec(sql),
+  prepare: (sql) => impl.prepare(sql),
+  close: () => impl.close?.(),
+};
+
+/** Switch to a database driver and make sure all tables exist. */
+export function useDatabase(driver) {
+  impl = driver;
+  migrate();
+}
+
+export function openNodeDatabase() {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+  const d = new DatabaseSync(process.env.DB_FILE || path.join(DATA_DIR, 'cafirm.db'));
+  d.exec('PRAGMA journal_mode = WAL;');
+  useDatabase(d);
+}
 
 /** Run fn inside a transaction (nested calls become savepoints). Everything is synchronous, so no interleaving. */
 let depth = 0;
@@ -22,6 +43,8 @@ export function tx(fn) {
   catch (e) { depth--; db.exec(depth ? `ROLLBACK TO ${sp}; RELEASE ${sp}` : 'ROLLBACK'); throw e; }
 }
 
+function migrate() {
+db.exec('PRAGMA foreign_keys = ON;');
 db.exec(`
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 
@@ -145,6 +168,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   at TEXT DEFAULT (datetime('now'))
 );
 `);
+}
 
 export function setting(key, make) {
   const row = db.prepare('SELECT value FROM settings WHERE key=?').get(key);
