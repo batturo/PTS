@@ -1,0 +1,20 @@
+{
+  "name": "cafirm-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --no-warnings src/index.js",
+    "dev": "node --no-warnings --watch src/index.js",
+    "seed": "node --no-warnings src/seed.js",
+    "test": "node --no-warnings --test test/api.test.js"
+  },
+  "engines": { "node": ">=22.5" },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2"
+  }
+}

@@ -1,0 +1,91 @@
+# Builds the CA Firm Portal Android app (cafirm/client) and publishes it as a GitHub Release ("cafirm-android-latest").
+# Needs ONE repository variable: CAFIRM_API_URL = the https address where you host the server (cafirm/server), e.g. https://portal.myfirm.in
+# Signing: add secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS for a release-signed APK + Play Store bundle (.aab).
+# Without them a debug-signed APK is built (fine for testing).
+name: CA Firm – Android app
+
+on:
+  push:
+    branches: [main]
+    paths: ['cafirm/client/**', '.github/workflows/cafirm-android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cafirm-android
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_VERSION_CODE: ${{ github.run_number }}
+      APP_VERSION_NAME: 1.0.${{ github.run_number }}
+      VITE_API_URL: ${{ vars.CAFIRM_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the server address is configured
+        run: test -n "$VITE_API_URL" || { echo "::error::Set the repository variable CAFIRM_API_URL (Settings → Secrets and variables → Actions → Variables) to your server's https address."; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cafirm/client/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - name: Build the web bundle and sync it into the Android project
+        working-directory: cafirm/client
+        run: |
+          npm ci --include=dev
+          npx vite build --mode mobile
+          npx cap sync android
+      - name: Prepare signing key (if configured)
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No signing secrets set – building a debug-signed APK."
+          fi
+      - name: Build APK (and Play Store bundle when signed)
+        working-directory: cafirm/client/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          chmod +x gradlew
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            ./gradlew --no-daemon assembleRelease bundleRelease
+            cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/CA-Firm-Portal.apk"
+            cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/CA-Firm-Portal-PlayStore.aab"
+          else
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/out/CA-Firm-Portal.apk"
+          fi
+          ls -la "$GITHUB_WORKSPACE/out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CA-Firm-Portal-android
+          path: out/*
+      - name: Publish as the "cafirm-android-latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete cafirm-android-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create cafirm-android-latest out/* \
+            --title "CA Firm Portal – Android app (v${APP_VERSION_NAME})" \
+            --notes "Android app for the CA Firm Portal, built from ${GITHUB_SHA::7}. Install: open this page on the phone, tap CA-Firm-Portal.apk and allow *Install unknown apps* when asked." \
+            --latest=false
