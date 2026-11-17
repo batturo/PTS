@@ -1,6 +1,6 @@
 # Prompt library
 
-Seventeen prompts, grouped by job. Each one is written so any model can run it: it states the goal, the steps in order, the reply format, and the check to make before answering.
+Sixteen prompts, grouped by job. Each one is written so any model can run it: it states the goal, the steps in order, the reply format, and the check to make before answering.
 
 How to use it:
 
