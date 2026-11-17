@@ -15,6 +15,7 @@ const P = {
   Library: lazy(() => import('./pages/Library.jsx')), MyBooks: lazy(() => import('./pages/MyBooks.jsx')),
   Driver: lazy(() => import('./pages/Driver.jsx')), Routes: lazy(() => import('./pages/BusRoutes.jsx')), Track: lazy(() => import('./pages/Track.jsx')),
   Account: lazy(() => import('./pages/Account.jsx')),
+  Setup: lazy(() => import('./pages/AcademicSetup.jsx')),
 };
 const C = lazy(() => import('./pages/Content.jsx'));
 const content = (kind) => () => <C kind={kind} />;
@@ -26,6 +27,8 @@ const NAV = [
   ['Overview', [['/', 'Dashboard', '🏠', Dashboard, null]]],
   ['Administration', [
     ['/users', 'User Accounts', '👥', P.Users, ['admin']],
+    ['/setup', 'Classes & Teachers', '🏫', P.Setup, ['admin']],
+    ['/exams', 'Exams of the Year', '🗓️', () => <P.Setup tab="exams" />, ['admin']],
     ['/settings', 'School Settings', '⚙️', P.Settings, ['admin']],
   ]],
   ['My School', [
@@ -80,6 +83,7 @@ export default function App() {
   const [auth, setAuth] = useState(undefined);
   const [school, setSchool] = useState({});
   const [menu, setMenu] = useState(false);
+  const [structure, setStructure] = useState(null);
   const loc = useLocation();
   useEffect(() => setMenu(false), [loc.pathname]);
   useEffect(() => {
@@ -91,13 +95,20 @@ export default function App() {
     return () => window.removeEventListener('erp-logout', out);
   }, []);
 
-  if (auth === undefined) return <Loading />;
+  const staff = auth && !['student', 'parent'].includes(auth.user.role);
+  const loadStructure = () => get('/structure').then(setStructure).catch(() => setStructure({ classes: [], subjects: [], allotments: [], exams: [], teachers: [] }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (staff) loadStructure(); else setStructure(null); }, [staff, auth?.user?.id]);
+  /** Re-read allotments after an administrator changes them (also refreshes a teacher's own scope). */
+  const reloadStructure = async () => { await loadStructure(); try { const me = await get('/auth/me'); setAuth(me); } catch { /* ignore */ } };
+
+  if (auth === undefined || (staff && !structure)) return <Loading />;
   if (!auth) return (<><Login school={school} onLogin={(a) => setAuth(a)} /><Toaster /></>);
   const role = auth.user.role;
   const groups = NAV.map(([g, items]) => [g, items.filter(i => !i[4] || i[4].includes(role))]).filter(([, i]) => i.length);
   const logout = () => { setToken(null); setAuth(null); };
 
-  return (<AuthCtx.Provider value={{ ...auth, school, logout }}>
+  return (<AuthCtx.Provider value={{ ...auth, school, logout, structure, reloadStructure }}>
     <div className="app">
       <aside className={`sidebar ${menu ? 'open' : ''}`}>
         <div className="brand"><img src="./icon.svg" alt="" /><div>{school.school_name || 'School ERP'}<small>{ROLE_LABEL[role]} · {school.academic_year}</small></div></div>

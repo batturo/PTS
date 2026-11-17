@@ -11,6 +11,7 @@ import { payrollRouter } from './routes/payroll.js';
 import { libraryRouter } from './routes/library.js';
 import { transportRouter } from './routes/transport.js';
 import { miscRouter, UPLOAD_DIR, MAX_UPLOAD_MB } from './routes/misc.js';
+import { structureRouter } from './routes/structure.js';
 
 
 /**
@@ -34,6 +35,7 @@ export function createApp({ webDir, loadUpload } = {}) {
   app.use('/api/payroll', payrollRouter);
   app.use('/api/library', libraryRouter);
   app.use('/api/transport', transportRouter);
+  app.use('/api', structureRouter);
   app.use('/api', academicsRouter);
   app.use('/api', miscRouter);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

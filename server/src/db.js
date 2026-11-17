@@ -217,6 +217,57 @@ const defaults = {
   db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)').run('_jwt_secret', crypto.randomBytes(32).toString('hex'));
 const ins = db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(defaults)) ins.run(k, v);
+  migrateAcademicStructure();
+}
+
+export const DEFAULT_SUBJECTS = ['English', 'Hindi', 'Mathematics', 'Science', 'Social Science', 'Sanskrit', 'Computer Science',
+  'Physics', 'Chemistry', 'Biology', 'Accountancy', 'Economics', 'Business Studies', 'Physical Education', 'EVS', 'Art', 'Music'];
+
+/**
+ * Classes, sections (with class teachers), subjects, subject-teacher allotments and the year's exam types.
+ * Students and content keep class/section/subject/exam as plain text that must match these records.
+ * Version 2 back-fills the new tables from existing data so an existing school keeps working after the upgrade.
+ */
+function migrateAcademicStructure() {
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS classes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    class_teacher_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE(class_id, name)
+  );
+  CREATE TABLE IF NOT EXISTS subjects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL);
+  CREATE TABLE IF NOT EXISTS subject_allotments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+    subject TEXT NOT NULL,
+    teacher_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE(section_id, subject)
+  );
+  CREATE TABLE IF NOT EXISTS exam_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
+    start_date TEXT, end_date TEXT, max_marks REAL NOT NULL DEFAULT 100, sort_order INTEGER NOT NULL DEFAULT 0
+  );`);
+  const version = Number(db.prepare("SELECT value FROM settings WHERE key='_schema_version'").get()?.value || 1);
+  if (version >= 2) return;
+  const sortKey = (c) => { const order = ['Nursery', 'LKG', 'UKG']; const i = order.indexOf(c); return i >= 0 ? i - 10 : Number(c) || 100; };
+  const pairs = db.prepare(`SELECT class, section FROM students UNION SELECT class, section FROM timetable
+    UNION SELECT class, section FROM datesheets WHERE section IS NOT NULL AND section <> ''`).all().filter(p => p.class && p.section);
+  for (const { class: c, section: sec } of pairs) {
+    db.prepare('INSERT OR IGNORE INTO classes(name, sort_order) VALUES (?, ?)').run(c, sortKey(c));
+    const cid = db.prepare('SELECT id FROM classes WHERE name=?').get(c).id;
+    db.prepare('INSERT OR IGNORE INTO sections(class_id, name) VALUES (?, ?)').run(cid, sec);
+  }
+  const usedSubjects = db.prepare(`SELECT subject FROM results UNION SELECT subject FROM timetable UNION SELECT subject FROM homework
+    UNION SELECT subject FROM datesheets UNION SELECT subject FROM lesson_plans`).all().map(r => r.subject).filter(Boolean);
+  for (const s of new Set([...DEFAULT_SUBJECTS, ...usedSubjects])) db.prepare('INSERT OR IGNORE INTO subjects(name) VALUES (?)').run(s);
+  const exams = db.prepare('SELECT exam_name, MAX(max_marks) m FROM results GROUP BY exam_name UNION SELECT exam_name, NULL FROM datesheets').all();
+  exams.forEach((e, i) => db.prepare('INSERT OR IGNORE INTO exam_types(name, max_marks, sort_order) VALUES (?, ?, ?)').run(e.exam_name, e.m || 100, i + 1));
+  db.prepare("INSERT INTO settings(key, value) VALUES ('_schema_version', '2') ON CONFLICT(key) DO UPDATE SET value='2'").run();
 }
 
 if (!SERVERLESS) useDatabase(openNodeSqlite());

@@ -68,31 +68,61 @@ const TONES = { Paid: 'ok', Approved: 'ok', Returned: 'ok', Active: 'ok', Comple
 export const Badge = ({ children, tone }) => <span className={`badge ${tone ?? TONES[children] ?? ''}`}>{children}</span>;
 
 /** Generic form field. */
-export function Field({ f, value, onChange }) {
+export function Field({ f, value, onChange, form = {} }) {
   const set = (v) => onChange(f.name, v);
   let input;
   if (f.type === 'select') input = (<select value={value ?? ''} onChange={(e) => set(e.target.value)} required={f.required}>
       {!f.noBlank && <option value="">{f.placeholder || '— Select —'}</option>}
-      {(typeof f.options === 'function' ? f.options() : f.options).map(o => typeof o === 'object' ? <option key={o.value} value={o.value}>{o.label}</option> : <option key={o}>{o}</option>)}
+      {(typeof f.options === 'function' ? f.options(form) : f.options).map(o => typeof o === 'object' ? <option key={o.value} value={o.value}>{o.label}</option> : <option key={o}>{o}</option>)}
     </select>);
   else if (f.type === 'textarea') input = <textarea value={value ?? ''} onChange={(e) => set(e.target.value)} required={f.required} placeholder={f.placeholder} />;
   else if (f.type === 'checkbox') return (<label className="row small" style={{ fontWeight: 600 }}><input type="checkbox" checked={!!Number(value)} onChange={(e) => set(e.target.checked ? 1 : 0)} />{f.label}</label>);
-  else if (f.render) input = f.render(value, set);
+  else if (f.render) input = f.render(value, set, form);
   else input = <input type={f.type || 'text'} value={value ?? ''} onChange={(e) => set(e.target.value)} required={f.required} placeholder={f.placeholder} step={f.step} min={f.min} max={f.max} />;
   return <label className={`f ${f.full ? 'full' : ''}`}>{f.label}{f.required && ' *'}{input}{f.hint && <span className="small" style={{ fontWeight: 400 }}>{f.hint}</span>}</label>;
 }
 
-/** Class & section picker. */
-export function ClassPicker({ value, onChange, allowAll, needSection = true }) {
+/** Class & section picker built from the administrator's classes. `only` limits it to [{class, section}] pairs. */
+export function ClassPicker({ value, onChange, allowAll, needSection = true, only }) {
+  const { structure } = useAuth();
+  const classes = (structure?.classes || []).filter(c => !only || only.some(o => o.class === c.name));
+  const sections = (classes.find(c => c.name === value.class)?.sections || []).filter(s => !only || only.some(o => o.class === value.class && o.section === s.name));
   return (<>
-    <select value={value.class || ''} onChange={(e) => onChange({ ...value, class: e.target.value })} aria-label="Class">
-      <option value="">{allowAll ? 'All classes' : 'Class'}</option>{CLASSES.map(c => <option key={c} value={c}>Class {c}</option>)}
+    <select value={value.class || ''} onChange={(e) => onChange({ ...value, class: e.target.value, section: '' })} aria-label="Class">
+      <option value="">{allowAll ? 'All classes' : 'Class'}</option>{classes.map(c => <option key={c.id} value={c.name}>Class {c.name}</option>)}
     </select>
     {needSection && <select value={value.section || ''} onChange={(e) => onChange({ ...value, section: e.target.value })} aria-label="Section">
-      <option value="">{allowAll ? 'All sections' : 'Section'}</option>{SECTIONS.map(s => <option key={s}>{s}</option>)}
+      <option value="">{allowAll ? 'All sections' : 'Section'}</option>{sections.map(s => <option key={s.id}>{s.name}</option>)}
     </select>}
   </>);
 }
+
+/**
+ * What the signed-in user may work on, from the administrator's allotments.
+ *  classTeacher: sections they are class teacher of · linked: sections they teach in any way
+ *  subjects: [{class, section, subject}] they may write subject content for.  Administrators get everything.
+ */
+export function useAccess() {
+  const { user, scope, structure } = useAuth();
+  const admin = user.role === 'admin';
+  const all = (structure?.classes || []).flatMap(c => c.sections.map(s => ({ class: c.name, section: s.name })));
+  const allSubjects = (structure?.subjects || []).map(s => s.name);
+  const classTeacher = admin ? all : (scope?.classTeacherOf || []);
+  const linked = admin ? all : (scope?.linked || []);
+  const subjects = admin ? all.flatMap(p => allSubjects.map(subject => ({ ...p, subject }))) : (scope?.subjects || []);
+  const sectionsOf = (cls) => (structure?.classes || []).find(c => c.name === cls)?.sections.map(s => s.name) || [];
+  return {
+    admin, all, classTeacher, linked, subjects, allSubjects, exams: structure?.exams || [],
+    isClassTeacher: (cls, sec) => admin || classTeacher.some(p => p.class === cls && p.section === sec),
+    isLinked: (cls, sec) => admin || linked.some(p => p.class === cls && p.section === sec),
+    /** Subject allowed in class/section; blank section = every section of the class. */
+    teaches: (cls, sec, subject) => admin || (sec ? subjects.some(p => p.class === cls && p.section === sec && p.subject === subject)
+      : sectionsOf(cls).length > 0 && sectionsOf(cls).every(x => subjects.some(p => p.class === cls && p.section === x && p.subject === subject))),
+    sectionsOf,
+    classesIn: (pairs) => [...new Set(pairs.map(p => p.class))].sort((a, b) => order(structure, a) - order(structure, b)),
+  };
+}
+const order = (structure, cls) => (structure?.classes || []).findIndex(c => c.name === cls);
 
 export const classLabel = (r) => (r.class ? `Class ${r.class}${r.section ? '-' + r.section : ''}` : 'Whole school');
 export const confirmDo = (msg) => window.confirm(msg);

@@ -109,7 +109,61 @@ export function seedDemo() {
     insert(db, 'payroll_adjustments', { employee_id: e3, month, type: 'Salary Advance Recovery', amount: 2000, note: 'Advance of Oct (1/3)' });
     insert(db, 'payroll_adjustments', { employee_id: e1, month, type: 'Incentive', amount: 1500, note: 'Olympiad coaching' });
   });
+  applyDemoStaffing();
   return creds;
 }
 
 export const isEmpty = () => !db.prepare('SELECT COUNT(*) c FROM users').get().c;
+
+/**
+ * Demo classes, class teachers, subject teachers and the year's exams.
+ * Runs when the demo school is first created, and once on an existing demo school that predates class/subject allotments.
+ */
+export function applyDemoStaffing() {
+  const get = (sql, ...a) => db.prepare(sql).get(...a);
+  tx(() => {
+    const t = today(), y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7));
+    const ay = m >= 4 ? y : y - 1; // Indian academic year starts in April
+    const teacher1 = get("SELECT id FROM users WHERE username='teacher'")?.id;
+    let teacher2 = get("SELECT id FROM users WHERE username='teacher2'")?.id;
+    if (!teacher2) teacher2 = createUser({ username: 'teacher2', password: 'teacher123', role: 'teacher', name: 'Rahul Mehta', phone: '9810000007' }, null).id;
+    // classes & sections from the students
+    for (const { class: c, section: sec } of db.prepare('SELECT DISTINCT class, section FROM students').all()) {
+      db.prepare('INSERT OR IGNORE INTO classes(name, sort_order) VALUES (?, ?)').run(c, Number(c) || 100);
+      db.prepare('INSERT OR IGNORE INTO sections(class_id, name) VALUES ((SELECT id FROM classes WHERE name=?), ?)').run(c, sec);
+    }
+    const section = (c, sec) => get('SELECT s.id FROM sections s JOIN classes c ON c.id=s.class_id WHERE c.name=? AND s.name=?', c, sec)?.id;
+    const s10A = section('10', 'A'), s9B = section('9', 'B');
+    if (s10A && teacher1) db.prepare('UPDATE sections SET class_teacher_id=? WHERE id=?').run(teacher1, s10A);
+    if (s9B) db.prepare('UPDATE sections SET class_teacher_id=? WHERE id=?').run(teacher2, s9B);
+    const allot = (sec, subject, teacher) => sec && teacher && db.prepare(`INSERT INTO subject_allotments(section_id, subject, teacher_id) VALUES (?,?,?)
+      ON CONFLICT(section_id, subject) DO UPDATE SET teacher_id=excluded.teacher_id`).run(sec, subject, teacher);
+    allot(s10A, 'Mathematics', teacher1); allot(s10A, 'English', teacher1); allot(s9B, 'Mathematics', teacher1);
+    for (const sub of ['Science', 'Social Science', 'Hindi']) allot(s10A, sub, teacher2);
+    for (const sub of ['English', 'Science', 'Social Science', 'Hindi']) allot(s9B, sub, teacher2);
+    // timetable shows the allotted teacher
+    db.prepare(`UPDATE timetable SET teacher_name = (SELECT u.name FROM subject_allotments a JOIN sections s ON s.id=a.section_id
+      JOIN classes c ON c.id=s.class_id JOIN users u ON u.id=a.teacher_id WHERE c.name=timetable.class AND s.name=timetable.section AND a.subject=timetable.subject)
+      WHERE EXISTS (SELECT 1 FROM subject_allotments a JOIN sections s ON s.id=a.section_id JOIN classes c ON c.id=s.class_id
+      WHERE c.name=timetable.class AND s.name=timetable.section AND a.subject=timetable.subject AND a.teacher_id IS NOT NULL)`).run();
+    // exams of the year (existing exam names used by results/date sheets are kept)
+    const exams = [['Unit Test 1', `${ay}-07-15`, `${ay}-07-22`, 25], ['Half Yearly 2026', `${ay}-09-15`, `${ay}-09-30`, 80],
+      ['Unit Test 2', `${ay}-11-20`, `${ay}-11-27`, 25], ['Pre-Board 2026', null, null, 100], ['Annual Exam', `${ay + 1}-03-01`, `${ay + 1}-03-20`, 80]];
+    exams.forEach(([n, a, b, mm], i) => {
+      db.prepare('INSERT OR IGNORE INTO exam_types(name, start_date, end_date, max_marks, sort_order) VALUES (?,?,?,?,?)').run(n, a, b, mm, i + 1);
+      db.prepare('UPDATE exam_types SET sort_order=? WHERE name=?').run(i + 1, n);
+    });
+    const pb = get("SELECT MIN(exam_date) a, MAX(exam_date) b FROM datesheets WHERE exam_name='Pre-Board 2026'");
+    if (pb?.a) db.prepare("UPDATE exam_types SET start_date=?, end_date=? WHERE name='Pre-Board 2026' AND start_date IS NULL").run(pb.a, pb.b);
+    db.prepare("INSERT INTO settings(key, value) VALUES ('_demo_staffing', '1') ON CONFLICT(key) DO UPDATE SET value='1'").run();
+  });
+}
+
+/** Existing demo schools created before allotments existed get the demo staffing once. Real schools are never touched. */
+export function upgradeDemo() {
+  const isDemo = db.prepare("SELECT 1 FROM users WHERE username='teacher' AND role='teacher'").get()
+    && db.prepare("SELECT 1 FROM students WHERE admission_no='2026001'").get();
+  const done = db.prepare("SELECT value FROM settings WHERE key='_demo_staffing'").get();
+  const hasAllotments = db.prepare('SELECT 1 FROM subject_allotments').get();
+  if (isDemo && !done && !hasAllotments) applyDemoStaffing();
+}

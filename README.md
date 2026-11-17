@@ -27,7 +27,8 @@ For development with hot reload, run `npm run dev:api` and `npm run dev:web` in 
 |---|---|---|
 | School Administrator | `admin` | `admin123` |
 | Accountant | `accountant` | `accounts123` |
-| Teacher | `teacher` | `teacher123` |
+| Teacher (class teacher 10-A; Maths & English 10-A, Maths 9-B) | `teacher` | `teacher123` |
+| Teacher (class teacher 9-B; Science, Hindi, Social Science…) | `teacher2` | `teacher123` |
 | Librarian | `librarian` | `library123` |
 | Bus Driver | `driver` | `driver123` |
 | Student | `2026001` (admission no.) | `student123` |
@@ -35,18 +36,21 @@ For development with hot reload, run `npm run dev:api` and `npm run dev:web` in 
 
 ## Who can do what
 
-| Feature | Admin | Accountant | Teacher | Librarian | Driver | Student / Parent |
-|---|---|---|---|---|---|---|
-| Create staff logins (any role) | ✅ | | | | | |
-| Create student + parent logins | ✅ | | ✅ | | | |
-| Attendance, results, homework, study material (PDF), video classes, time table, lesson plans, events, date sheets | ✅ | | ✅ | | | view |
-| Leave applications | ✅ approve | | ✅ approve | | | apply / withdraw |
-| Notices | ✅ | ✅ | ✅ | ✅ (overdue-book notices) | ✅ | view |
-| Fees: structure, invoices, collection, receipts | ✅ | ✅ | | | | view own + receipts |
-| Payroll: employees, attendance and hours, payslips | ✅ | ✅ | | | | |
-| Library: inventory, issue, return, renew, fines | ✅ | | | ✅ | | view books issued |
-| Bus routes and live location | ✅ (all routes) | | track any bus | | own route + live sharing | live bus map |
-| Own payslips | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| Feature | Admin | Accountant | Class teacher (own section) | Subject teacher (allotted subjects) | Librarian | Driver | Student / Parent |
+|---|---|---|---|---|---|---|---|
+| Create staff logins | ✅ | | | | | | |
+| Classes, sections, class teachers, subject allotments, subjects | ✅ | | | | | | |
+| Exams of the year | ✅ | | | | | | |
+| Add / edit / remove students (+ their logins) | ✅ | | ✅ | | | | |
+| Attendance, time table, leave approval | ✅ | | ✅ | view | | | view / apply |
+| Study material, video links, homework, lesson plans, date-sheet papers, results | ✅ | | | ✅ | | | view |
+| Notices & events | ✅ school-wide | ✅ | ✅ own classes | ✅ own classes | ✅ | ✅ | view |
+| Fees | ✅ | ✅ | | | | | view own |
+| Payroll | ✅ | ✅ | | | | | |
+| Library | ✅ | | | | ✅ | | view books issued |
+| Bus routes / live location | ✅ | | track | track | | own route | live map |
+
+**How allotments work:** the admin creates classes and sections under **Classes & Teachers**, and picks a class teacher for each section. They then allot each subject in each section to a teacher, either under **Subject Teachers** (by section) or **By Teacher**. Teachers only see the sections they teach. Their forms list only their own classes and subjects, and anything belonging to another teacher shows as "View only". The admin also lists the year's exams under **Exams of the Year**, and date sheets and results can only use those exams.
 
 Every rule is enforced on the server (`server/src/auth.js → allow()`), not just hidden in the UI.
 The Administrator passes every staff permission check but cannot act as a student or parent.

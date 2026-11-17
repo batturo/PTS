@@ -1,7 +1,9 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
+import { upgradeDemo, isEmpty } from './demo.js';
 
+if (!isEmpty()) upgradeDemo();
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = createApp({ webDir: path.join(here, '..', '..', 'client', 'dist') });
 const PORT = process.env.PORT || 4000;

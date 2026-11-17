@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { post, put, del, qs } from '../api.js';
-import { useData, Page, Modal, Field, Loading, ErrorBox, Badge, Stat, run, confirmDo, ClassPicker, CLASSES, inr, fmtDate, monthLabel, todayISO, thisMonth } from '../ui.jsx';
+import { useData, Page, Modal, Field, Loading, ErrorBox, Badge, Stat, run, confirmDo, ClassPicker, useAuth, inr, fmtDate, monthLabel, todayISO, thisMonth } from '../ui.jsx';
 import { InvoiceView, ReceiptView } from './FeeDocs.jsx';
 
 const MODES = ['Cash', 'UPI', 'Cheque', 'Bank Transfer', 'Card', 'Online'];
@@ -96,6 +96,8 @@ function Generate() {
 }
 
 function Structure() {
+  const { structure } = useAuth();
+  const CLASSES = structure.classes.map(c => c.name);
   const [cls, setCls] = useState('');
   const [rows, reload] = useData('/fees/structures' + qs({ class: cls }));
   const [edit, setEdit] = useState(null);

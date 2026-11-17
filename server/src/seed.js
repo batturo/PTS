@@ -10,4 +10,5 @@ if (!isEmpty()) { console.log('Database already has users – run with --reset t
 const creds = seedDemo();
 console.log('\nDemo school seeded. Logins:');
 for (const [role, u, p] of creds) console.log(`  ${role.padEnd(11)} ${u.padEnd(12)} ${p}`);
+console.log('  teacher     teacher2     teacher123   (2nd teacher: class teacher of 9-B, Science & more)');
 console.log('  (other students: 2026002…2026006 / student123, parents: P2026002… / parent123)\n');

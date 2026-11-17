@@ -81,6 +81,7 @@ async function loadDatabase() {
   m.useDatabase(driver);
   version = Math.max(remote, 0);
   if (m.isEmpty()) m.seedDemo(); // first visit ever: create the demo school
+  else m.upgradeDemo();
   if (driver.dirty) await save();
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { post, qs } from '../api.js';
-import { useAuth, useData, Page, Loading, ErrorBox, Badge, run, ClassPicker, SUBJECTS } from '../ui.jsx';
+import { useAuth, useAccess, useData, Page, Loading, ErrorBox, Badge, run, ClassPicker } from '../ui.jsx';
 
 function FamilyResults() {
   const { student } = useAuth();
@@ -24,9 +24,11 @@ function FamilyResults() {
 }
 
 function StaffResults() {
-  const [f, setF] = useState({ class: '10', section: 'A', exam_name: '', subject: '' });
+  const acc = useAccess();
+  const pairs = [...new Map(acc.subjects.map(p => [`${p.class}|${p.section}`, { class: p.class, section: p.section }])).values()];
+  const [f, setF] = useState({ class: pairs[0]?.class || '', section: pairs[0]?.section || '', exam_name: '', subject: '' });
   const [max, setMax] = useState(100);
-  const [meta] = useData('/results');
+  const subjects = f.class && f.section ? acc.allSubjects.filter(s => acc.teaches(f.class, f.section, s)) : [];
   const ready = f.class && f.section && f.exam_name && f.subject;
   const [rows, reload] = useData(ready ? '/results' + qs(f) : null);
   const [marks, setMarks] = useState({});
@@ -35,21 +37,23 @@ function StaffResults() {
     setMarks(Object.fromEntries(rows.map(r => [r.student_id, { marks_obtained: r.marks_obtained ?? '', remarks: r.remarks ?? '' }])));
     const m = rows.find(r => r.max_marks)?.max_marks; if (m) setMax(m);
   }, [rows]);
+  const pickExam = (name) => { setF({ ...f, exam_name: name }); const e = acc.exams.find(x => x.name === name); if (e) setMax(e.max_marks); };
   const save = async () => {
     if (await run(() => post('/results', { ...f, max_marks: Number(max), records: Object.entries(marks).map(([student_id, v]) => ({ student_id: Number(student_id), ...v })) }), (r) => `Saved marks for ${r.saved} students`)) reload();
   };
-  return (<Page title="Results" sub="Enter marks subject-wise for an exam. Students & parents see their report card instantly.">
-    <div className="filters"><ClassPicker value={f} onChange={setF} />
-      <input list="exams" placeholder="Exam name e.g. Unit Test 1" value={f.exam_name} onChange={(e) => setF({ ...f, exam_name: e.target.value })} />
-      <datalist id="exams">{(meta?.exams || []).concat(['Unit Test 1', 'Unit Test 2', 'Half Yearly', 'Pre-Board', 'Annual Exam']).map(x => <option key={x} value={x} />)}</datalist>
-      <select value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })}><option value="">Subject</option>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select>
+  if (!acc.admin && !pairs.length) return <Page title="Results"><div className="card empty">No subjects are allotted to you yet. Ask an administrator to allot your classes and subjects.</div></Page>;
+  return (<Page title="Results" sub={acc.admin ? 'Enter marks subject-wise for an exam. Students & parents see their report card instantly.' : 'Enter marks for the subjects allotted to you.'}>
+    <div className="filters"><ClassPicker value={f} onChange={(v) => setF({ ...v, exam_name: f.exam_name, subject: '' })} only={acc.admin ? undefined : pairs} />
+      <select value={f.exam_name} onChange={(e) => pickExam(e.target.value)} aria-label="Exam"><option value="">Exam</option>{acc.exams.map(x => <option key={x.id}>{x.name}</option>)}</select>
+      <select value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })} aria-label="Subject"><option value="">Subject</option>{subjects.map(s => <option key={s}>{s}</option>)}</select>
       <label className="f">Max marks<input type="number" min="1" value={max} onChange={(e) => setMax(e.target.value)} /></label>
     </div>
+    {!acc.exams.length && <div className="alert info">No exams have been added for this year. An administrator can add them under Exams of the Year.</div>}
     {!ready ? <div className="card empty">Choose class, section, exam and subject.</div> : !Array.isArray(rows) ? <Loading /> : <div className="card flush">
       <div className="table-wrap"><table><thead><tr><th>Roll</th><th>Student</th><th>Marks (out of {max})</th><th>Remarks</th></tr></thead><tbody>
         {rows.map(r => <tr key={r.student_id}><td>{r.roll_no}</td><td>{r.name}</td>
-          <td><input type="number" min="0" max={max} step="0.5" style={{ maxWidth: 110 }} value={marks[r.student_id]?.marks_obtained ?? ''} onChange={(e) => setMarks({ ...marks, [r.student_id]: { ...marks[r.student_id], marks_obtained: e.target.value } })} /></td>
-          <td><input value={marks[r.student_id]?.remarks ?? ''} onChange={(e) => setMarks({ ...marks, [r.student_id]: { ...marks[r.student_id], remarks: e.target.value } })} /></td></tr>)}
+          <td><input type="number" min="0" max={max} step="0.5" style={{ maxWidth: 110 }} value={marks[r.student_id]?.marks_obtained ?? ''} onChange={(e) => setMarks({ ...marks, [r.student_id]: { ...marks[r.student_id], marks_obtained: e.target.value } })} aria-label={`Marks for ${r.name}`} /></td>
+          <td><input value={marks[r.student_id]?.remarks ?? ''} onChange={(e) => setMarks({ ...marks, [r.student_id]: { ...marks[r.student_id], remarks: e.target.value } })} aria-label={`Remarks for ${r.name}`} /></td></tr>)}
       </tbody></table>{!rows.length && <div className="empty">No students in this class.</div>}</div>
       <div className="card-head"><div className="spacer" /><button className="btn" onClick={save}>Save marks</button></div></div>}
   </Page>);

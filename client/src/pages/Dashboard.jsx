@@ -6,7 +6,7 @@ const NoticeList = ({ items, to }) => (<div className="card"><div className="row
     <div className="row"><b>{n.title}</b><Badge tone="primary">{n.category}</Badge></div><div className="small muted">{fmtDate(n.notice_date)}</div></div>)}</div>);
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, scope } = useAuth();
   const [d, , { error }] = useData('/dashboard');
   if (error) return <ErrorBox error={error} />;
   if (!d) return <Loading />;
@@ -35,6 +35,11 @@ export default function Dashboard() {
 
   const role = user.role, admin = role === 'admin';
   return (<Page title={hi} sub={new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}>
+    {role === 'teacher' && <div className="card"><h2>Your classes & subjects</h2>
+      {!scope?.linked.length ? <div className="muted small">Nothing is allotted to you yet. An administrator allots classes and subjects under Classes & Teachers.</div> : <div className="stack">
+        <div className="row"><b className="small">Class teacher of:</b>{scope.classTeacherOf.length ? scope.classTeacherOf.map(p => <Badge key={p.class + p.section} tone="primary">{`${p.class}-${p.section}`}</Badge>) : <span className="small muted">—</span>}</div>
+        <div className="row"><b className="small">Subjects:</b>{scope.subjects.map(p => <Badge key={p.class + p.section + p.subject} tone="info">{`${p.subject} · ${p.class}-${p.section}`}</Badge>)}</div>
+      </div>}</div>}
     {admin && <div className="card"><h2>Active user accounts</h2><div className="row">{d.users.map(u => <Badge key={u.role} tone="primary">{`${u.role}: ${u.count}`}</Badge>)}<div className="spacer" /><Link to="/users" className="btn sm">Manage users</Link></div></div>}
     <div className="grid-stats">
       {d.students != null && <><Link to="/students"><Stat label="Active students" value={d.students} icon="🎓" /></Link>

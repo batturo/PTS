@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db, tx } from '../db.js';
 import { allow, sign, authenticate, myStudent, isFamily } from '../auth.js';
 import { bad, notFound, genPassword, pick, insert, update } from '../util.js';
+import { requireClassTeacher, requireSection, teacherRowFilter, linkedTo, teacherScope } from '../scope.js';
 
 export const authRouter = Router();
 export const usersRouter = Router();
@@ -17,7 +18,7 @@ authRouter.post('/login', (req, res) => {
   const { password_hash, ...user } = u;
   res.json({ token: sign(u), user });
 });
-authRouter.get('/me', authenticate, (req, res) => res.json({ user: req.user, student: myStudent(req) }));
+authRouter.get('/me', authenticate, (req, res) => res.json({ user: req.user, student: myStudent(req), scope: req.user.role === 'teacher' ? teacherScope(req.user.id) : null }));
 authRouter.post('/change-password', authenticate, (req, res) => {
   const { current, next } = req.body || {};
   const u = db.prepare('SELECT password_hash FROM users WHERE id=?').get(req.user.id);
@@ -87,6 +88,10 @@ studentsRouter.get('/', allow(...STAFF_READ), (req, res) => {
   if (section) { where.push('s.section=?'); args.push(section); }
   if (route_no) { where.push('s.route_no=?'); args.push(route_no); }
   if (q) { where.push('(s.name LIKE ? OR s.admission_no LIKE ? OR s.father_name LIKE ?)'); args.push(`%${q}%`, `%${q}%`, `%${q}%`); }
+  if (req.user.role === 'teacher') { // teachers see the sections they teach
+    const f = teacherRowFilter(req.user, { classCol: 's.class', sectionCol: 's.section' });
+    where.push(`(${f.sql} AND s.class IS NOT NULL AND s.class <> '')`); args.push(...f.args);
+  }
   res.json(db.prepare(`SELECT s.*,
       (SELECT username FROM users WHERE student_id=s.id AND role='student') AS student_username,
       (SELECT username FROM users WHERE student_id=s.id AND role='parent') AS parent_username
@@ -99,12 +104,15 @@ studentsRouter.get('/me', allow('student', 'parent'), (req, res) => res.json(myS
 studentsRouter.get('/:id', allow(...STAFF_READ), (req, res) => {
   const s = db.prepare('SELECT * FROM students WHERE id=?').get(req.params.id);
   if (!s) throw notFound('Student');
+  if (req.user.role === 'teacher' && !linkedTo(req.user, s.class, s.section)) throw notFound('Student');
   res.json(s);
 });
 /** Creates the student record + a student login + a parent login, returning the generated credentials. */
 studentsRouter.post('/', allow('teacher'), (req, res) => {
   const data = pick(req.body, STUDENT_FIELDS);
   for (const f of ['admission_no', 'name', 'class', 'section']) if (!data[f]) throw bad(`${f.replace('_', ' ')} is required`);
+  requireSection(data.class, data.section);
+  requireClassTeacher(req.user, data.class, data.section);
   if (db.prepare('SELECT 1 FROM students WHERE admission_no=?').get(data.admission_no)) throw bad('Admission number already exists');
   const out = tx(() => {
     const id = insert(db, 'students', data);
@@ -116,15 +124,29 @@ studentsRouter.post('/', allow('teacher'), (req, res) => {
   });
   res.json(out);
 });
+/** The student, after checking the user is their class teacher (or an administrator). */
+function ownStudent(req) {
+  const st = db.prepare('SELECT * FROM students WHERE id=?').get(req.params.id);
+  if (!st) throw notFound('Student');
+  requireClassTeacher(req.user, st.class, st.section);
+  return st;
+}
 studentsRouter.put('/:id', allow('teacher'), (req, res) => {
+  const st = ownStudent(req);
   const data = pick(req.body, STUDENT_FIELDS);
   delete data.admission_no; // admission number is the login id; keep it stable
-  if (!update(db, 'students', req.params.id, data)) throw notFound('Student');
+  const cls = data.class ?? st.class, sec = data.section ?? st.section;
+  if (cls !== st.class || sec !== st.section) { // moving to another section: it must exist and be theirs too
+    requireSection(cls, sec);
+    requireClassTeacher(req.user, cls, sec);
+  }
+  update(db, 'students', st.id, data);
   if (data.name) db.prepare("UPDATE users SET name=? WHERE student_id=? AND role='student'").run(data.name, req.params.id);
   if (data.active !== undefined) db.prepare('UPDATE users SET active=? WHERE student_id=?').run(data.active ? 1 : 0, req.params.id);
   res.json({ ok: true });
 });
 studentsRouter.post('/:id/reset-password', allow('teacher'), (req, res) => {
+  ownStudent(req);
   const role = req.body.role === 'parent' ? 'parent' : 'student';
   const u = db.prepare('SELECT id, username, name FROM users WHERE student_id=? AND role=?').get(req.params.id, role);
   if (!u) throw notFound('Login');
@@ -133,6 +155,7 @@ studentsRouter.post('/:id/reset-password', allow('teacher'), (req, res) => {
   res.json({ role, username: u.username, name: u.name, password: pwd });
 });
 studentsRouter.delete('/:id', allow('teacher'), (req, res) => {
+  ownStudent(req);
   tx(() => {
     db.prepare('DELETE FROM users WHERE student_id=?').run(req.params.id);
     for (const i of db.prepare('SELECT book_id FROM book_issues WHERE student_id=? AND return_date IS NULL').all(req.params.id))
