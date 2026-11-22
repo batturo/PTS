@@ -58,10 +58,25 @@ The Administrator passes every staff permission check but cannot act as a studen
 ## Modules
 
 **Fees Management:**
-- **Fee structure:** fee heads per class (Tuition, Transport, Lab, Annual…), each with a frequency: Monthly, Quarterly (Apr/Jul/Oct/Jan), Half-Yearly (Apr/Oct), Annual (April) or One-Time.
-- **Invoices:** one click generates a month's invoices for the whole school or one class. Transport fee is billed only to students on a bus route. Concession % (sibling, staff ward, scholarship) applies to every head except transport. Custom one-off invoices are also supported.
-- **Late fee:** a configurable fine per day after the due date, capped per invoice. It can be waived.
-- **Collection:** Cash, UPI, Cheque, Bank Transfer and Card, with full or partial payment. Receipts are numbered and show the amount in words (lakh/crore). There is also a payments register and a class-wise collection summary.
+- **Fee Entry:**
+  1. Search a student by name, admission number, father's name or mobile.
+  2. Their session appears month by month (April → March): paid, partly paid, due, not billed, or upcoming. Dues from earlier years appear too.
+  3. Tick the months (or dues) to collect, enter the amount, mode and UTR or cheque number, and click **Collect**. One receipt covers everything ticked.
+  - **Advance payments:** months that were never billed are billed from the fee structure at the moment of payment, with no late fee.
+  - **Part payments:** the money clears the oldest month first.
+- **Current Fees Status:** a class-wise table for the whole school and session, with section-wise rows. Columns: fee for the session, collected, due till date, rest of the session, previous years' dues, total outstanding, collection %, and the number of students with dues. Download as CSV or print.
+- **Fee Defaulters:** filter by session, class and section, then choose:
+  - any dues;
+  - has not paid a particular month;
+  - has not paid for N or more months.
+
+  Months up to a chosen month count, optionally including months never billed. The list shows unpaid months, amounts, mobile numbers and the date of the last payment. From it you can:
+  - send a **fee reminder** to the student's and parent's Notices;
+  - download a CSV, or print;
+  - jump to **Collect** for a student.
+- **Fee structure:** fee heads per class (Tuition, Transport, Lab, Annual…), each with a frequency: Monthly, Quarterly (Apr/Jul/Oct/Jan), Half-Yearly (Apr/Oct), Annual (April) or One-Time. Transport fee is billed only to students on a bus route. Concession % applies to every head except transport.
+- **Invoices:** **Generate Invoices** bills a whole class or school for a month. Custom one-off invoices are also supported. A late fee per day after the due date (due day set in **School Settings**) is capped per invoice and can be waived.
+- **Receipts:** numbered receipts showing the months paid and the amount in words, plus a receipts register. Admins can cancel a receipt; the months it paid then become due again.
 
 **Payroll:**
 - **Employee records:** name, father's and mother's name, date of birth, profession, department, address, PAN, Aadhaar, UAN, bank details and joining date.

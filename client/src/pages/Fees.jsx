@@ -2,25 +2,10 @@ import { useState } from 'react';
 import { post, put, del, qs } from '../api.js';
 import { useData, Page, Modal, Field, Loading, ErrorBox, Badge, Stat, run, confirmDo, ClassPicker, useAuth, inr, fmtDate, monthLabel, todayISO, thisMonth } from '../ui.jsx';
 import { InvoiceView, ReceiptView } from './FeeDocs.jsx';
+import { FeeEntry, FeesStatus, Defaulters } from './FeeDesk.jsx';
 
 const MODES = ['Cash', 'UPI', 'Cheque', 'Bank Transfer', 'Card', 'Online'];
 const FREQ = ['Monthly', 'Quarterly', 'Half-Yearly', 'Annual', 'One-Time'];
-
-function Overview() {
-  const [s] = useData('/fees/summary');
-  if (!s) return <Loading />;
-  const pct = s.billed ? Math.round(s.collected / s.billed * 100) : 0;
-  return (<div className="stack">
-    <div className="grid-stats"><Stat label="Total billed" value={inr(s.billed)} icon="🧾" /><Stat label="Collected" value={inr(s.collected)} icon="✅" tone="ok" />
-      <Stat label="Outstanding" value={inr(s.outstanding)} icon="⏳" tone="warn" /><Stat label="Overdue invoices" value={s.overdueCount} icon="⚠️" tone={s.overdueCount ? 'bad' : undefined} /><Stat label="Collected today" value={inr(s.todayCollection)} icon="📅" /></div>
-    <div className="card"><div className="row"><b>Collection progress</b><div className="spacer" />{pct}%</div><div className="progress" style={{ marginTop: 8 }}><div style={{ width: `${pct}%` }} /></div></div>
-    <div className="grid">
-      <div className="card flush"><div className="card-head"><b>Class-wise</b></div><div className="table-wrap"><table><thead><tr><th>Class</th><th className="num">Billed</th><th className="num">Collected</th><th className="num">Due</th></tr></thead>
-        <tbody>{s.byClass.map(c => <tr key={c.class}><td>{c.class}</td><td className="num">{inr(c.billed)}</td><td className="num">{inr(c.collected)}</td><td className="num">{inr(c.outstanding)}</td></tr>)}</tbody></table></div></div>
-      <div className="card flush"><div className="card-head"><b>By payment mode</b></div><div className="table-wrap"><table><tbody>{s.byMode.map(m => <tr key={m.mode}><td>{m.mode}</td><td className="num">{m.count} payments</td><td className="num">{inr(m.amount)}</td></tr>)}</tbody></table>{!s.byMode.length && <div className="empty">No payments yet.</div>}</div></div>
-    </div>
-  </div>);
-}
 
 function Invoices() {
   const [f, setF] = useState({ status: 'Unpaid' });
@@ -57,7 +42,7 @@ function Invoices() {
     {view && <InvoiceView id={view} onClose={() => setView(null)} extra={(inv) => inv && <>
       {inv.late_fee > 0 && <button className="btn secondary" onClick={async () => { if (await run(() => put(`/fees/invoices/${inv.id}/waive-fine`, { amount: inv.late_fee + inv.waived_fine }), 'Late fee waived')) { setView(null); reload(); } }}>Waive late fee</button>}
       {!inv.payments.length && <button className="btn danger" onClick={async () => { if (confirmDo('Delete this invoice?') && await run(() => del(`/fees/invoices/${inv.id}`), 'Invoice deleted')) { setView(null); reload(); } }}>Delete</button>}
-      {inv.payments.map(p => <button key={p.id} className="btn secondary" onClick={() => setReceipt(p.id)}>Receipt {p.receipt_no.slice(-6)}</button>)}</>} />}
+      {inv.payments.map(p => <button key={p.id} className="btn secondary" onClick={() => setReceipt(p.receipt_id)}>Receipt {(p.receipt_no || '').slice(-6)}</button>)}</>} />}
     {receipt && <ReceiptView id={receipt} onClose={() => setReceipt(null)} />}
   </div>);
 }
@@ -119,28 +104,39 @@ function Structure() {
   </div>);
 }
 
-function Payments() {
+function Receipts() {
   const [f, setF] = useState({ from: todayISO().slice(0, 8) + '01', to: todayISO() });
-  const [rows] = useData('/fees/payments' + qs(f));
+  const [rows, reload] = useData('/fees/receipts' + qs(f));
   const [receipt, setReceipt] = useState(null);
+  const { user } = useAuth();
+  const cancel = async (r) => { if (confirmDo(`Cancel receipt ${r.receipt_no} (${inr(r.amount)})? The months it paid become due again.`) && await run(() => del(`/fees/receipts/${r.id}`), 'Receipt cancelled')) reload(); };
   return (<div className="stack">
     <div className="filters"><label className="f">From<input type="date" value={f.from} onChange={(e) => setF({ ...f, from: e.target.value })} /></label><label className="f">To<input type="date" value={f.to} onChange={(e) => setF({ ...f, to: e.target.value })} /></label></div>
     {!rows ? <Loading /> : <div className="card flush"><div className="table-wrap"><table>
-      <thead><tr><th>Receipt</th><th>Date</th><th>Student</th><th>Invoice</th><th>Mode</th><th className="num">Amount</th></tr></thead>
-      <tbody>{rows.map(p => <tr key={p.id}><td><a href="#" onClick={(e) => { e.preventDefault(); setReceipt(p.id); }}>{p.receipt_no}</a></td><td className="nowrap">{fmtDate(p.paid_on)}</td>
-        <td>{p.student_name}<div className="small muted">{p.admission_no} · {p.class}-{p.section}</div></td><td className="small">{p.invoice_no}</td><td>{p.mode}<div className="small muted">{p.reference}</div></td><td className="num">{inr(p.amount)}</td></tr>)}</tbody>
-      {!!rows.length && <tfoot><tr><td colSpan={5}>{rows.length} receipts</td><td className="num">{inr(rows.reduce((a, r) => a + r.amount, 0))}</td></tr></tfoot>}</table>
-      {!rows.length && <div className="empty">No payments in this period.</div>}</div></div>}
+      <thead><tr><th>Receipt</th><th>Date</th><th>Student</th><th>For</th><th>Mode</th><th className="num">Amount</th>{user.role === 'admin' && <th />}</tr></thead>
+      <tbody>{rows.map(r => <tr key={r.id}><td><a href="#" onClick={(e) => { e.preventDefault(); setReceipt(r.id); }}>{r.receipt_no}</a></td><td className="nowrap">{fmtDate(r.paid_on)}</td>
+        <td>{r.student_name}<div className="small muted">{r.admission_no} · {r.class}-{r.section}</div></td><td className="small">{r.periods.map(p => /^\d{4}-\d{2}$/.test(p) ? monthLabel(p) : p).join(', ')}</td>
+        <td>{r.mode}<div className="small muted">{r.reference}</div></td><td className="num">{inr(r.amount)}</td>
+        {user.role === 'admin' && <td className="right"><button className="btn sm ghost" onClick={() => cancel(r)}>Cancel</button></td>}</tr>)}</tbody>
+      {!!rows.length && <tfoot><tr><td colSpan={5}>{rows.length} receipts</td><td className="num">{inr(rows.reduce((a, r) => a + r.amount, 0))}</td>{user.role === 'admin' && <td />}</tr></tfoot>}</table>
+      {!rows.length && <div className="empty">No receipts in this period.</div>}</div></div>}
     {receipt && <ReceiptView id={receipt} onClose={() => setReceipt(null)} />}
   </div>);
 }
 
-const TABS = [['Overview', Overview], ['Invoices & Collection', Invoices], ['Generate Invoices', Generate], ['Fee Structure', Structure], ['Payments Register', Payments]];
 export default function Fees() {
-  const [tab, setTab] = useState(0);
-  const Comp = TABS[tab][1];
-  return (<Page title="Fees Management" sub="Fee structure, invoicing, late fees, collection and receipts">
-    <div className="tabs">{TABS.map(([l], i) => <button key={l} className={tab === i ? 'on' : ''} onClick={() => setTab(i)}>{l}</button>)}</div>
-    <Comp />
+  const [tab, setTab] = useState('entry');
+  const [studentId, setStudentId] = useState(null);
+  const TABS = [['entry', 'Fee Entry'], ['status', 'Current Fees Status'], ['defaulters', 'Fee Defaulters'], ['invoices', 'Invoices'],
+    ['generate', 'Generate Invoices'], ['structure', 'Fee Structure'], ['receipts', 'Receipts Register']];
+  return (<Page title="Fees Management" sub="Fee entry, class-wise fee status, defaulters, invoices and receipts">
+    <div className="tabs no-print">{TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+    {tab === 'entry' && <FeeEntry studentId={studentId} onStudent={setStudentId} />}
+    {tab === 'status' && <FeesStatus />}
+    {tab === 'defaulters' && <Defaulters onCollect={(id) => { setStudentId(id); setTab('entry'); }} />}
+    {tab === 'invoices' && <Invoices />}
+    {tab === 'generate' && <Generate />}
+    {tab === 'structure' && <Structure />}
+    {tab === 'receipts' && <Receipts />}
   </Page>);
 }

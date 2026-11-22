@@ -35,18 +35,25 @@ export function InvoiceView({ id, onClose, extra }) {
   </Modal>);
 }
 
+const periodLabel = (p) => (/^\d{4}-\d{2}$/.test(p) ? monthLabel(p) : p);
+
+/** Printable receipt; one receipt can cover several months / invoices. */
 export function ReceiptView({ id, onClose }) {
   const { school } = useAuth();
-  const [p] = useData(`/fees/payments/${id}/receipt`);
+  const [p] = useData(`/fees/receipts/${id}`);
   return (<Modal title="Fee receipt" onClose={onClose} footer={<button className="btn" onClick={() => window.print()}>Print receipt</button>}>
     {!p ? <Loading /> : <div className="stack">
       <div style={{ textAlign: 'center' }}><h2 style={{ margin: 0 }}>{school.school_name}</h2><div className="small muted">{school.school_address}</div><div style={{ marginTop: 6 }}><Badge tone="ok">FEE RECEIPT</Badge></div></div>
       <div className="form-grid small">
         <div><span className="muted">Receipt No.</span><br /><b>{p.receipt_no}</b></div><div><span className="muted">Date</span><br /><b>{fmtDate(p.paid_on)}</b></div>
         <div><span className="muted">Student</span><br /><b>{p.student_name}</b></div><div><span className="muted">Admission No.</span><br /><b>{p.admission_no}</b></div>
-        <div><span className="muted">Father's name</span><br /><b>{p.father_name}</b></div><div><span className="muted">Class</span><br /><b>{p.class}-{p.section}</b></div>
-        <div><span className="muted">Against invoice</span><br /><b>{p.invoice_no} ({monthLabel(p.period)})</b></div><div><span className="muted">Mode</span><br /><b>{p.mode}{p.reference ? ` · ${p.reference}` : ''}</b></div>
+        <div><span className="muted">Father's name</span><br /><b>{p.father_name || '—'}</b></div><div><span className="muted">Class</span><br /><b>{p.class}-{p.section}</b></div>
+        <div><span className="muted">Mode</span><br /><b>{p.mode}{p.reference ? ` · ${p.reference}` : ''}</b></div>
       </div>
+      <div className="table-wrap"><table><thead><tr><th>Fees for</th><th>Details</th><th className="num">Amount</th></tr></thead><tbody>
+        {p.lines.map((l, k) => <tr key={k}><td className="nowrap"><b>{periodLabel(l.period)}</b><div className="small muted">{l.invoice_no}</div></td>
+          <td className="small">{l.items.map(i => i.head).join(', ')}</td><td className="num">{inr(l.amount)}</td></tr>)}
+      </tbody><tfoot><tr><td colSpan={2}>Total received</td><td className="num">{inr(p.amount)}</td></tr></tfoot></table></div>
       <div className="card" style={{ textAlign: 'center' }}><div className="muted small">Amount received</div><div style={{ fontSize: 28, fontWeight: 700 }}>{inr(p.amount)}</div><div className="small">{inWords(p.amount)}</div></div>
       <div className="row small muted"><span>Received by: {p.received_by_name || '—'}</span><div className="spacer" /><span>This is a computer-generated receipt.</span></div>
     </div>}

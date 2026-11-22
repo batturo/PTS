@@ -4,7 +4,7 @@ import { useData, Page, Loading, run } from '../ui.jsx';
 
 const GROUPS = [
   ['School', [['school_name', 'School name'], ['school_address', 'Address'], ['academic_year', 'Academic year']]],
-  ['Fees', [['fee_fine_per_day', 'Late fee per day (₹)'], ['fee_fine_cap', 'Maximum late fee per invoice (₹)']]],
+  ['Fees', [['fee_fine_per_day', 'Late fee per day (₹)'], ['fee_fine_cap', 'Maximum late fee per invoice (₹)'], ['fee_due_day', 'Monthly fee due on day (1–28)']]],
   ['Library', [['library_issue_days', 'Default issue period (days)'], ['library_fine_per_day', 'Late return fine per day (₹)'], ['library_max_books', 'Max books per student']]],
   ['Payroll (statutory)', [['pf_rate', 'EPF rate (%)'], ['pf_wage_ceiling', 'EPF wage ceiling (₹)'], ['esi_employee_rate', 'ESI employee rate (%)'], ['esi_employer_rate', 'ESI employer rate (%)'],
     ['esi_wage_limit', 'ESI applicable up to gross (₹)'], ['pt_amount', 'Professional Tax per month (₹)'], ['pt_threshold', 'Professional Tax applies above gross (₹)'], ['ot_multiplier', 'Overtime multiplier (× hourly rate)']]],

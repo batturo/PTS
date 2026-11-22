@@ -207,7 +207,7 @@ const defaults = {
   school_name: 'Demo Public School',
   school_address: 'Sector 12, New Delhi - 110001',
   academic_year: '2026-27',
-  fee_fine_per_day: '10', fee_fine_cap: '500',
+  fee_fine_per_day: '10', fee_fine_cap: '500', fee_due_day: '10',
   library_issue_days: '14', library_fine_per_day: '2', library_max_books: '3',
   pf_rate: '12', pf_wage_ceiling: '15000',
   esi_employee_rate: '0.75', esi_employer_rate: '3.25', esi_wage_limit: '21000',
@@ -218,6 +218,30 @@ const defaults = {
 const ins = db.prepare('INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(defaults)) ins.run(k, v);
   migrateAcademicStructure();
+  migrateFeeReceipts();
+}
+
+/**
+ * One receipt can pay several invoices (e.g. three months at once). Each existing payment becomes its own receipt,
+ * keeping its receipt number, so old receipts still print the same.
+ */
+function migrateFeeReceipts() {
+  db.exec(`CREATE TABLE IF NOT EXISTS fee_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, receipt_no TEXT UNIQUE,
+    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    amount REAL NOT NULL, mode TEXT NOT NULL, reference TEXT, note TEXT,
+    paid_on TEXT NOT NULL, received_by INTEGER, created_at TEXT DEFAULT (datetime('now'))
+  );`);
+  const cols = db.prepare('PRAGMA table_info(fee_payments)').all().map(c => c.name);
+  if (!cols.includes('receipt_id')) db.exec('ALTER TABLE fee_payments ADD COLUMN receipt_id INTEGER REFERENCES fee_receipts(id) ON DELETE CASCADE');
+  const legacy = db.prepare('SELECT * FROM fee_payments WHERE receipt_id IS NULL').all();
+  for (const p of legacy) {
+    const r = db.prepare(`INSERT INTO fee_receipts(receipt_no, student_id, amount, mode, reference, paid_on, received_by) VALUES (?,?,?,?,?,?,?)`)
+      .run(p.receipt_no || null, p.student_id, p.amount, p.mode, p.reference, p.paid_on, p.received_by);
+    const rid = Number(r.lastInsertRowid);
+    if (!p.receipt_no) db.prepare('UPDATE fee_receipts SET receipt_no=? WHERE id=?').run(`RCPT-${p.paid_on.slice(0, 4)}-${String(rid).padStart(6, '0')}`, rid);
+    db.prepare('UPDATE fee_payments SET receipt_id=? WHERE id=?').run(rid, p.id);
+  }
 }
 
 export const DEFAULT_SUBJECTS = ['English', 'Hindi', 'Mathematics', 'Science', 'Social Science', 'Sanskrit', 'Computer Science',

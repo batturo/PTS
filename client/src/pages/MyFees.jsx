@@ -18,8 +18,8 @@ export default function MyFees() {
         <td className="nowrap">{fmtDate(i.due_date)}</td><td className="num">{inr(i.payable)}{i.late_fee > 0 && <div className="small muted">incl. late fee {inr(i.late_fee)}</div>}</td><td className="num">{inr(i.paid)}</td><td className="num"><b>{inr(i.balance)}</b></td><td><Badge>{i.status}</Badge></td></tr>)}</tbody></table>
       {!d.invoices.length && <div className="empty">No fee invoices yet.</div>}</div></div>
     <div className="card flush"><div className="card-head"><b>Payment receipts</b></div><div className="table-wrap"><table>
-      <tbody>{d.payments.map(p => <tr key={p.id}><td><a href="#" onClick={(e) => { e.preventDefault(); setReceipt(p.id); }}>{p.receipt_no}</a></td><td>{fmtDate(p.paid_on)}</td><td>{p.mode}</td><td className="num">{inr(p.amount)}</td></tr>)}</tbody></table>
-      {!d.payments.length && <div className="empty">No payments yet.</div>}</div></div>
+      <tbody>{d.receipts.map(r => <tr key={r.id}><td><a href="#" onClick={(e) => { e.preventDefault(); setReceipt(r.id); }}>{r.receipt_no}</a></td><td>{fmtDate(r.paid_on)}</td><td>{r.mode}</td><td className="num">{inr(r.amount)}</td></tr>)}</tbody></table>
+      {!d.receipts.length && <div className="empty">No payments yet.</div>}</div></div>
     {view && <InvoiceView id={view} onClose={() => setView(null)} />}{receipt && <ReceiptView id={receipt} onClose={() => setReceipt(null)} />}
   </Page>);
 }
